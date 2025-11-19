@@ -1418,35 +1418,6 @@ const SETTINGS_SCHEMA = {
     showInDialog: false,
     mergeStrategy: MergeStrategy.SHALLOW_MERGE,
   },
-  multilingual: {
-    type: 'object',
-    label: 'Multilingual',
-    category: 'General',
-    requiresRestart: true,
-    default: {},
-    description: 'Settings related to multilingual support.',
-    showInDialog: false,
-    properties: {
-      enableMultilingualSupport: {
-        type: 'boolean',
-        label: 'Enable Multilingual Support',
-        category: 'General',
-        requiresRestart: true,
-        default: true,
-        description: 'Enable or disable multilingual support in the CLI.',
-        showInDialog: true,
-      },
-      defaultLanguage: {
-        type: 'string',
-        label: 'Default Language',
-        category: 'General',
-        requiresRestart: false,
-        default: 'en',
-        description: 'Set the default language for the CLI.',
-        showInDialog: true,
-      },
-    },
-  },
 } as const satisfies SettingsSchema;
 
 export type SettingsSchemaType = typeof SETTINGS_SCHEMA;
