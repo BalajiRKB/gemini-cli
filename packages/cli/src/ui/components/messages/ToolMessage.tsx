@@ -48,203 +48,28 @@ export interface ToolMessageProps extends IndividualToolCallDisplay {
   config?: Config;
 }
 
-export const ToolMessage: React.FC<ToolMessageProps> = ({
-  name,
-  description,
-  resultDisplay,
-  status,
-  availableTerminalHeight,
-  terminalWidth,
-  emphasis = 'medium',
-  renderOutputAsMarkdown = true,
-  activeShellPtyId,
-  embeddedShellFocused,
-  ptyId,
-  config,
-  isFirst,
-  borderColor,
-  borderDimColor,
-}) => {
-  const { renderMarkdown } = useUIState();
-  const isAlternateBuffer = useAlternateBuffer();
-  const isThisShellFocused =
-    (name === SHELL_COMMAND_NAME || name === 'Shell') &&
-    status === ToolCallStatus.Executing &&
-    ptyId === activeShellPtyId &&
-    embeddedShellFocused;
-
-  const [lastUpdateTime, setLastUpdateTime] = React.useState<Date | null>(null);
-  const [userHasFocused, setUserHasFocused] = React.useState(false);
-  const [showFocusHint, setShowFocusHint] = React.useState(false);
-
-  React.useEffect(() => {
-    if (resultDisplay) {
-      setLastUpdateTime(new Date());
-    }
-  }, [resultDisplay]);
-
-  React.useEffect(() => {
-    if (!lastUpdateTime) {
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setShowFocusHint(true);
-    }, 5000);
-
-    return () => clearTimeout(timer);
-  }, [lastUpdateTime]);
-
-  React.useEffect(() => {
-    if (isThisShellFocused) {
-      setUserHasFocused(true);
-    }
-  }, [isThisShellFocused]);
-
-  const isThisShellFocusable =
-    (name === SHELL_COMMAND_NAME || name === 'Shell') &&
-    status === ToolCallStatus.Executing &&
-    config?.getEnableInteractiveShell();
-
-  const shouldShowFocusHint =
-    isThisShellFocusable && (showFocusHint || userHasFocused);
-
-  const availableHeight = availableTerminalHeight
-    ? Math.max(
-        availableTerminalHeight - STATIC_HEIGHT - RESERVED_LINE_COUNT,
-        MIN_LINES_SHOWN + 1, // enforce minimum lines shown
-      )
-    : undefined;
-
-  // Long tool call response in MarkdownDisplay doesn't respect availableTerminalHeight properly,
-  // so if we aren't using alternate buffer mode, we're forcing it to not render as markdown when the response is too long, it will fallback
-  // to render as plain text, which is contained within the terminal using MaxSizedBox
-  if (availableHeight && !isAlternateBuffer) {
-    renderOutputAsMarkdown = false;
-  }
-  const combinedPaddingAndBorderWidth = 4;
-  const childWidth = terminalWidth - combinedPaddingAndBorderWidth;
-
-  const truncatedResultDisplay = React.useMemo(() => {
-    if (typeof resultDisplay === 'string') {
-      if (resultDisplay.length > MAXIMUM_RESULT_DISPLAY_CHARACTERS) {
-        return '...' + resultDisplay.slice(-MAXIMUM_RESULT_DISPLAY_CHARACTERS);
-      }
-    }
-    return resultDisplay;
-  }, [resultDisplay]);
-
-  const renderedResult = React.useMemo(() => {
-    if (!truncatedResultDisplay) return null;
-
-    return (
-      <Box width={childWidth} flexDirection="column">
-        <Box flexDirection="column">
-          {typeof truncatedResultDisplay === 'string' &&
-          renderOutputAsMarkdown ? (
-            <Box flexDirection="column">
-              <MarkdownDisplay
-                text={truncatedResultDisplay}
-                terminalWidth={childWidth}
-                renderMarkdown={renderMarkdown}
-                isPending={false}
-              />
-            </Box>
-          ) : typeof truncatedResultDisplay === 'string' &&
-            !renderOutputAsMarkdown ? (
-            isAlternateBuffer ? (
-              <Box flexDirection="column" width={childWidth}>
-                <Text wrap="wrap" color={theme.text.primary}>
-                  {truncatedResultDisplay}
-                </Text>
-              </Box>
-            ) : (
-              <MaxSizedBox maxHeight={availableHeight} maxWidth={childWidth}>
-                <Box>
-                  <Text wrap="wrap" color={theme.text.primary}>
-                    {truncatedResultDisplay}
-                  </Text>
-                </Box>
-              </MaxSizedBox>
-            )
-          ) : typeof truncatedResultDisplay === 'object' &&
-            'fileDiff' in truncatedResultDisplay ? (
-            <DiffRenderer
-              diffContent={truncatedResultDisplay.fileDiff}
-              filename={truncatedResultDisplay.fileName}
-              availableTerminalHeight={availableHeight}
-              terminalWidth={childWidth}
-            />
-          ) : typeof truncatedResultDisplay === 'object' &&
-            'todos' in truncatedResultDisplay ? (
-            // display nothing, as the TodoTray will handle rendering todos
-            <></>
-          ) : (
-            <AnsiOutputText
-              data={truncatedResultDisplay as AnsiOutput}
-              availableTerminalHeight={availableHeight}
-              width={childWidth}
-            />
-          )}
-        </Box>
-      </Box>
-    );
-  }, [
-    truncatedResultDisplay,
-    renderOutputAsMarkdown,
-    childWidth,
-    renderMarkdown,
-    isAlternateBuffer,
-    availableHeight,
-  ]);
+export const ToolMessage: React.FC<{ toolCall: IndividualToolCallDisplay }> = ({ toolCall }) => {
+  const { name, status, resultDisplay, description } = toolCall;
 
   return (
-    <>
-      <StickyHeader
-        width={terminalWidth}
-        isFirst={isFirst}
-        borderColor={borderColor}
-        borderDimColor={borderDimColor}
-      >
-        <ToolStatusIndicator status={status} name={name} />
-        <ToolInfo
-          name={name}
-          status={status}
-          description={description}
-          emphasis={emphasis}
-        />
-        {shouldShowFocusHint && (
-          <Box marginLeft={1} flexShrink={0}>
-            <Text color={theme.text.accent}>
-              {isThisShellFocused ? '(Focused)' : '(ctrl+f to focus)'}
-            </Text>
-          </Box>
-        )}
-        {emphasis === 'high' && <TrailingIndicator />}
-      </StickyHeader>
-      <Box
-        width={terminalWidth}
-        borderStyle="round"
-        borderColor={borderColor}
-        borderDimColor={borderDimColor}
-        borderTop={false}
-        borderBottom={false}
-        borderLeft={true}
-        borderRight={true}
-        paddingX={1}
-        flexDirection="column"
-      >
-        {renderedResult}
-        {isThisShellFocused && config && (
-          <Box paddingLeft={STATUS_INDICATOR_WIDTH} marginTop={1}>
-            <ShellInputPrompt
-              activeShellPtyId={activeShellPtyId ?? null}
-              focus={embeddedShellFocused}
-            />
-          </Box>
-        )}
-      </Box>
-    </>
+    <Box flexDirection="column" marginBottom={1}>
+      <Text bold color={theme.text.primary}>
+        Tool: {name}
+      </Text>
+      <Text color={theme.text.secondary}>
+        Status: {status}
+      </Text>
+      {description && (
+        <Text color={theme.text.tertiary}>
+          Description: {description}
+        </Text>
+      )}
+      {resultDisplay && (
+        <Box marginTop={1}>
+          <MarkdownDisplay content={resultDisplay} />
+        </Box>
+      )}
+    </Box>
   );
 };
 
@@ -339,3 +164,5 @@ const TrailingIndicator: React.FC = () => (
     ←
   </Text>
 );
+
+export default ToolMessage;
